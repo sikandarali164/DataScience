@@ -1,0 +1,333 @@
+---
+title: "San Francisco"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(sf)
+library(tmap)
+library(purrr)
+library(highcharter) 
+library(reshape)
+library(dplyr)
+library(viridis)
+library(hrbrthemes)
+library(gganimate)
+library(ggmap)
+library(gifski)
+
+setwd("~/R/week/DataScience/DataScience")
+
+tmap_mode("view") 
+# read accident data
+rawdata<- read.csv("safety_visualization_data.csv")
+
+
+
+
+#Getting the Address by reverse geocoding 
+#register_google("AIzaSyD09dqmwYKBeEeXqjv9_QBDzr1_zIZ4zXA")
+
+
+#rawdata$textAddress <- mapply(FUN = function(lon, lat){ 
+ # revgeocode(c(lon, lat),output = "more")}, rawdata$intersection_lon, rawdata$intersection_lat)
+
+#takes time to download the file 
+#made the copy of the file
+
+rawdata<- read.csv("project.csv")
+
+rawdata$Fatal<-rawdata$bickill+rawdata$pedkill
+rawdata$NonFatal<-rawdata$bicinj+rawdata$pedinj
+
+FilterData<-rawdata%>%
+  filter(NonFatal>0|Fatal>0)
+ff<-st_as_sf(FilterData,wkt = "geom",dim = "XY",crs=4326)
+
+e<-rawdata%>%
+  group_by(year) %>%
+  summarise(ped = sum(pedcol),bic=sum(biccol))
+
+
+######zones
+rawdata2<-st_read("bayarea/bayarea_zipcodes.shp")
+
+zipss<-rawdata%>%
+  group_by(Zip)%>%
+  summarise(Totalkill=n())
+
+Zipgraph<- merge(x=rawdata2,y=zipss,by.x='ZIP',by.y='Zip')
+zippp<-st_as_sf(Zipgraph)
+
+#####network 
+rawdata3<-st_read("zero injury/vz_hin_2017_single_line.shp")
+injury<-st_as_sf(rawdata3)
+
+#### piechart
+options(highcharter.theme = hc_theme_smpl(tooltip = list(valueDecimals = 2)))
+
+d<-rawdata%>%
+  select(year,biccol,pedcol)
+dped<-rawdata%>%
+  select(year,ampedcol,pmpedcol)
+dbic<-rawdata%>%
+  select(year,ambiccol,pmbiccol)
+
+dped<-melt(dped,id="year")
+dbic<-melt(dbic,id="year")
+dped<-dped%>%
+  group_by(variable)%>%
+  summarise(value=sum(value))
+dbic<-dbic%>%
+  group_by(variable)%>%
+  summarise(value=sum(value))
+
+drilldown=c("biccol","pedcol")
+
+d<-melt(d,id="year")
+d<-d%>%
+  group_by(variable)%>%
+  summarise(value=sum(value))
+d$drilldown<-drilldown
+
+hc<-highchart()%>%
+  hc_chart(type="pie")%>%
+  hc_title(text="basic drilldown")%>%
+  hc_xAxis(type="category")%>%
+  hc_legend(enabled=FALSE)%>%
+  hc_plotOptions(
+    series=list(
+      borderwidth=0,
+      datalabels=list(enabled=TRUE)
+    )
+  )%>%
+  hc_add_series(
+    data = d,
+    type="pie",
+    colorByPoint=TRUE,
+    hcaes(x = variable, y = value)
+  )
+hc
+
+hc <- hc %>%
+  hc_drilldown(
+    allowPointDrilldown = TRUE,
+    series = list(
+      list(
+        id = "biccol",
+        data = list_parse2(dbic)
+      ),
+      list(
+        id = "pedcol",
+        data = list_parse2(dped)
+      )
+    )
+  )
+
+
+```
+
+
+
+
+
+```{r}
+
+
+```
+
+
+
+
+
+Collision per Years 
+=========================
+
+
+Column {data-height=400}
+------------------------------------------------------------------------------------------
+
+
+
+### bicycle-riders{data-height=50}
+
+```{r}
+
+valueBox(sum(rawdata$biccol), icon = "fas fa-bicycle")
+
+```
+
+### bicycle vs pedestrian
+
+```{r message = FALSE, warning = FALSE, results = FALSE}
+
+
+plots<-ggplot(data = e,aes(x=year+0.5)) +
+  geom_line(aes(y=ped,color="red"),stat="identity") +
+  geom_point(aes(y=ped),stat="identity",shape=21, color="black", fill="#69b3a2", size=6) +
+  geom_line(aes(y=bic,color="grey"),stat="identity") +
+  geom_point(aes(y=bic),stat="identity",shape=21, color="black", fill="#69b3a2", size=6)+
+scale_color_discrete()+
+  xlab('YEAR') +
+  ylab('Number of Collison')  +
+  ggtitle("Collisons per Year")+
+  theme_bw()+
+  scale_color_viridis(name = "Collison", labels = c("Bicycle", "Pedestrian"),discrete = TRUE) +
+  transition_reveal(year)
+
+anim_save("goo.gif", plots)
+```
+![](goo.gif)
+
+
+
+
+
+
+Column {data-height=400}
+------------------------------------------------------------------------------------------
+### Pesdestrien{data-height=50}
+
+```{r}
+valueBox(sum(rawdata$pedcol), icon = "fas fa-walking")
+```
+
+### Pie Chart
+
+
+```{r}
+hc
+
+```
+
+
+
+
+
+
+Collisions (ggplot)
+=========================
+
+Column {data-height=200}
+------------------------------------------------------------------------------------------
+
+
+
+### Non-fatal {data-height=50}
+
+```{r}
+
+valueBox(sum(FilterData$NonFatal), icon = "fas fa-briefcase-medical")
+
+
+```
+
+### Non-fatal 
+
+
+```{r}
+tm_shape(ff)+tm_bubbles(col="NonFatal",size = "NonFatal",
+                        
+                        title.size ="NonFatal",id="Street",popup.vars=c("kill"="NonFatal"))
+
+
+```
+
+
+
+
+
+
+Column {data-height=200}
+------------------------------------------------------------------------------------------
+### fatal {data-height=50}
+
+```{r}
+valueBox(sum(FilterData$Fatal), icon = "fas fa-ambulance")
+```
+
+### Fatal 
+
+```{r}
+tm_shape(ff)+tm_bubbles(col="Fatal",size = "Fatal",
+                        
+                        title.size ="Fatal",id="textAddress",popup.vars=c("kill"="Fatal"))
+
+
+```
+
+
+
+
+
+Interactive graphs (tmaps)
+=========================
+
+
+Column {data-height=500}
+------------------------------------------------------------------------------------------
+### Zones with High Rate Of Accidents.
+
+```{r}
+
+
+
+
+
+tm_shape(zippp)+tm_polygons(titel="casualties",col = "Totalkill",alpha = 0.6,
+                            n = 16,palette = hcl.colors(18, palette = "Inferno")[3:18],
+                            popup.vars=c("Zip Code:"="ZIP",
+                                         "Kills:"="Totalkill"),
+                            # border definition: color and transparency
+                            border.col = "#990099",
+                            border.alpha = 0.1,
+                            title = "Total Kills")+tm_layout(title = "Accessibility to jobs<br>Model: Car free flow speeds")
+
+```
+
+
+
+
+
+
+Column {data-width=500}
+------------------------------------------------------------------------------------------
+### 2017 High Injury Network
+    
+```{r}
+
+
+
+tm_shape(injury)+tm_lines(col = "full_stree",id="full_stree",popup.vars=c("length(m):"="length"),scale=10,legend.col.show = FALSE)
+
+
+```
+    
+    
+    
+
+Discussion
+=========================
+
+
+###  Sources
+
+The hospital data along with police injury data was used to analyze spatial patterns of severe and fatal injuries. 
+
+
+### Recommended Citation
+San Francisco Department of Public Health-Program on Health, Equity and Sustainability. 2017. Vision Zero High Injury Network: 2017 Update – A Methodology for San Francisco, California. San Francisco, CA. Available at: https://www.sfdph.org/dph/eh/PHES/PHES/TransportationandHealth.asp.
+
+
+
+
+
+
+
+
+
