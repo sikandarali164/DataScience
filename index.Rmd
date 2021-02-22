@@ -45,9 +45,12 @@ rawdata<- read.csv("project.csv")
 rawdata$Fatal<-rawdata$bickill+rawdata$pedkill
 rawdata$NonFatal<-rawdata$bicinj+rawdata$pedinj
 
-FilterData<-rawdata%>%
-  filter(NonFatal>0|Fatal>0)
-ff<-st_as_sf(FilterData,wkt = "geom",dim = "XY",crs=4326)
+FilterData1<-rawdata%>%
+  filter(NonFatal>0,year==2012)
+FilterData2<-rawdata%>%
+  filter(Fatal>0,year==2012)
+ff1<-st_as_sf(FilterData1,wkt = "geom",dim = "XY",crs=4326)
+ff2<-st_as_sf(FilterData2,wkt = "geom",dim = "XY",crs=4326)
 
 e<-rawdata%>%
   group_by(year) %>%
@@ -87,7 +90,7 @@ dbic<-dbic%>%
   group_by(variable)%>%
   summarise(value=sum(value))
 
-drilldown=c("biccol","pedcol")
+drilldown=c("bicycle","Pedestrian")
 
 d<-melt(d,id="year")
 d<-d%>%
@@ -97,9 +100,9 @@ d$drilldown<-drilldown
 
 hc<-highchart()%>%
   hc_chart(type="pie")%>%
-  hc_title(text="basic drilldown")%>%
+  hc_title(text="Time Factor")%>%
   hc_xAxis(type="category")%>%
-  hc_legend(enabled=FALSE)%>%
+  hc_legend(enabled=TRUE)%>%
   hc_plotOptions(
     series=list(
       borderwidth=0,
@@ -119,11 +122,11 @@ hc <- hc %>%
     allowPointDrilldown = TRUE,
     series = list(
       list(
-        id = "biccol",
+        id = "bicycle",
         data = list_parse2(dbic)
       ),
       list(
-        id = "pedcol",
+        id = "Pedestrian",
         data = list_parse2(dped)
       )
     )
@@ -145,7 +148,7 @@ hc <- hc %>%
 
 
 
-Collision per Years 
+Incidents per Years 
 =========================
 
 
@@ -210,7 +213,7 @@ hc
 
 
 
-Collisions (ggplot)
+Fatality/Injury
 =========================
 
 Column {data-height=200}
@@ -222,18 +225,23 @@ Column {data-height=200}
 
 ```{r}
 
-valueBox(sum(FilterData$NonFatal), icon = "fas fa-briefcase-medical")
+valueBox(sum(FilterData1$NonFatal), icon = "fas fa-briefcase-medical")
 
 
 ```
 
-### Non-fatal 
+### Non-fatal(2012) 
 
 
 ```{r}
-tm_shape(ff)+tm_bubbles(col="NonFatal",size = "NonFatal",
-                        
-                        title.size ="NonFatal",id="Street",popup.vars=c("kill"="NonFatal"))
+tm_shape(ff1)+tm_bubbles(col="NonFatal",size = "NonFatal",
+                        contrast=1,
+                        border.col = "black", 
+                        border.alpha = .5,
+                        title.size="NonFatal",
+                        id="Street",
+                        popup.vars=c("kill"="NonFatal"))+
+                        tm_style("natural")
 
 
 ```
@@ -248,15 +256,18 @@ Column {data-height=200}
 ### fatal {data-height=50}
 
 ```{r}
-valueBox(sum(FilterData$Fatal), icon = "fas fa-ambulance")
+valueBox(sum(FilterData2$Fatal), icon = "fas fa-ambulance")
 ```
 
-### Fatal 
+### Fatal(2012)
 
 ```{r}
-tm_shape(ff)+tm_bubbles(col="Fatal",size = "Fatal",
-                        
-                        title.size ="Fatal",id="textAddress",popup.vars=c("kill"="Fatal"))
+tm_shape(ff2)+tm_bubbles(col="Fatal",size= "Fatal",
+                         contrast=1,
+                         border.col = "black", border.alpha = .5,
+                         title.size ="Fatal",
+                         id="Street",
+                         popup.vars=c("kill"="Fatal"))+tm_style("natural")
 
 
 ```
@@ -265,13 +276,13 @@ tm_shape(ff)+tm_bubbles(col="Fatal",size = "Fatal",
 
 
 
-Interactive graphs (tmaps)
+NETWORK ANALYSIS
 =========================
 
 
 Column {data-height=500}
 ------------------------------------------------------------------------------------------
-### Zones with High Rate Of Accidents.
+### Zones with High Rate Of Accidents (2006 - 2017).
 
 ```{r}
 
@@ -323,6 +334,19 @@ The hospital data along with police injury data was used to analyze spatial patt
 ### Recommended Citation
 San Francisco Department of Public Health-Program on Health, Equity and Sustainability. 2017. Vision Zero High Injury Network: 2017 Update – A Methodology for San Francisco, California. San Francisco, CA. Available at: https://www.sfdph.org/dph/eh/PHES/PHES/TransportationandHealth.asp.
 
+- San Francisco Country Transportation Authority
+https://www.sfcta.org/tools-data
+
+- Open Data From
+https://datasf.org/opendata/
+
+- Googlemap api (Revgeocode)
+
+- Highercharter
+
+- Tmap
+
+- GGplot
 
 
 
